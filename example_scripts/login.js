@@ -35,6 +35,7 @@ The code is run from the commandline and requires 5 parameters. These are
 // Packages required
 var https = require('https');
 var url = require('url'); 
+var fs = require('fs');
 
 run_login();
 
@@ -59,11 +60,12 @@ function run_login()
         print_cli_params();
         process.exit(1);
     }    
-    let id             = cli_params[0];
-    let pw             = cli_params[1];
-    let app_key     = cli_params[2];
-    let cert_path     = cli_params[3];
-    let key_path     = cli_params[4];
+    let id        = cli_params[0];
+    let pw        = cli_params[1];
+    let app_key   = cli_params[2];
+    let cert_path = cli_params[3];
+    let key_path  = cli_params[4];
+    
     let login_endpoint = "https://identitysso-cert.betfair.com/api/certlogin";
     
     // Create URL object from the logon endpoint using the URL package

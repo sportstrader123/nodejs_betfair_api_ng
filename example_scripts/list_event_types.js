@@ -6,7 +6,11 @@
 * Description
 This is a simple node.js script that will login to
 your Betfair account via the Betfair API (via the 
-non-interactive login) and then logout again.
+non-interactive login). If successful, it will then
+call the listEventTypes API operation and print to the 
+console each listed event type ID, its name and the 
+number of available markets for that event type.
+
 It will use your login credentials, application key and 
 key and certificate files that you will need to create
 (or already have) in order to do so.
@@ -31,13 +35,14 @@ The code is run from the commandline and requires 5 parameters. These are
 * then PLEASE DO NOT RUN THE SCRIPT!
 */ 
 
+
 "use strict"
-// Packages required
+
 var https = require('https');
 var url = require('url'); 
 var fs = require('fs');
 
-run_login();
+run();
 
 //============================================================ 
 function print_cli_params()
@@ -50,7 +55,7 @@ function print_cli_params()
 }
 
 //============================================================ 
-function run_login() 
+function run() 
 {
     // Retrieve command line parameters
     var cli_params = process.argv.slice(2); 
@@ -60,99 +65,113 @@ function run_login()
         print_cli_params();
         process.exit(1);
     }    
-    let id        = cli_params[0];
-    let pw        = cli_params[1];
-    let app_key   = cli_params[2];
-    let cert_path = cli_params[3];
-    let key_path  = cli_params[4];
+    let id         = cli_params[0];
+    let pw         = cli_params[1];
+    let app_key    = cli_params[2];
+    let cert_path  = cli_params[3];
+    let key_path   = cli_params[4];
     
     login(id,pw,app_key,cert_path,key_path);
+    
 }
 
 //============================================================ 
-function logout(session_id)
+function parseListEventTypesResponse(data) 
 {
-	console.log("Attempting to logout...");
-	let logout_endpoint = 'https://identitysso.betfair.com/api/logout';
-	
-	let logout_options = url.parse(logout_endpoint);
-	
-	logout_options.method = 'POST';
-    logout_options.port = 443;
-    
-    // Need to populate the header with the session token that we obtained at login
-	logout_options.headers = {
-		'Accept': 'application/json',
-		'X-Authentication' : session_id        
-    };
-    
-    logout_options.agent = new https.Agent(logout_options);
+    // Callback for when listEventTypes response is received
+    // We parse the JSON response here.
+    let todays_races = [];
+    let todays_races_with_runners = [];
+    let response = {};
+    try
+    {
+        response = JSON.parse(data);
+    }
+    catch (ex)
+    {
+        console.error("Error parsing JSON response packet: " + ex.message);
+        console.error("Offending packet content: " + data);
+        return;
+    }
+    checkErrors(response);
+    let eventlist = response.result;
+    // Iterate over the items in the response and display 
+    // the event type ID, name and the number of markets for each
+    // event type
+    for (let event of eventlist)
+    {
+        let evid = event.eventType.id;
+        let evname = event.eventType.name;
+        let mkcount = event.marketCount;
+        console.log("   [" + evid + "]  " + evname + " (" + mkcount + " markets).");
+    }
+}
 
-    // Create a new https request object.
-    let req = https.request(logout_options, function(res) {    
-		// Display the https request status code
-        console.log("HTTP status code:", res.statusCode);
-            
-        // Create string to store the API response data
-        let responseData = "";
-        res.on('data', function(new_data) {
-            // New data arrived - append to existing string buffer
-            responseData += new_data;
+//============================================================ 
+function getEventTypes(session_id, app_key) 
+{
+    // Create request options - the session token needs to be set here
+    // as well as the application key
+    let https_options = {
+        hostname: 'api.betfair.com',
+        port: 443,
+        path: '/exchange/betting/json-rpc/v1',
+        agent: new https.Agent(),
+        method: 'POST',
+        headers: {            
+            'Accept': 'application/json',
+            'Content-type' : 'application/json',
+            'X-Authentication' : session_id,
+            'Connection':'Keep-Alive',
+            'X-Application' : app_key,
+        }
+    }
+    
+    // Have an empty filter for this request.
+    let filter = '{"filter":{}}';
+
+    // Create the JSON request - this involves setting the filter and the JSON-RPC interface method
+    // - in this case we are calling the listEventTypes operation.
+    let json_request = '{"jsonrpc":"2.0","method":"SportsAPING/v1.0/listEventTypes", "params": ' + filter + ', "id": 1}';
+    
+    // Create a string buffer to store the response we get back
+    let response_buffer = '';
+    
+    // Create the HTTPS request now
+    let req = https.request(https_options,function (res) {
+        res.setEncoding('utf-8');
+        res.on('data', function (chunk) {
+            // Event handler for arrival of new data
+            // Append the new data to the buffer
+            response_buffer += chunk;
         });
         res.on('end', function() {
-            // On end handler. Fires when the response has been fully received
-            try
-            {
-                // Parse the response JSON
-                let response = JSON.parse(responseData);
-                if (200 === res.statusCode)
-                {
-                    // Received HTTP status code 200. 
-                    // The response is a JSON object that contains a status
-                    // code.
-                    if ("SUCCESS" === response.status)
-                    {
-                        // Logged out successfully!!                                                            
-                        console.log("Logout sucessful!");
-                    }
-                    else
-                    {
-                        // Logoout unsuccessful - display status and error 
-                        console.log("Logout attempt failed, response status = " + response.status + ", error = " + response.error);                        
-                    }
-                }
-                else
-                {
-                    // Logout failed. Report the HTTP error status code
-                    console.error("Logout attempt failed! HTTP status code = " + res.statusCode);
-                }
-            }
-            catch (e)
-            {
-                // JSON parser error - report the reason that the JSON was not
-                // correctly parsed.
-                console.error("JSON parse error: " + e.message);
-            }
+            // Event handler for end of data received.
+            // When the transmission has ended we call the response
+            // parser function
+            parseListEventTypesResponse(response_buffer);
         });
-        res.on('error', function(e) {
-            // Error with response - dump to console.
-            console.error(e);
-        });
+        res.on('close', function(err) {
+            // Socket close error handler
+            console.log("Error - socket connection closed!");
+            console.log(err);
+        });    
     });
-    
-    // Post the request
+        
+    // Send Json request object
+    req.write(json_request, 'utf-8');
     req.end();
     req.on('error', function(e) {
-        // Error with the request  - dump to console.
+        // error handler for request
         console.log('Problem with request: ' + e.message);
-    });
-
+    }); 
+            
 }
 
 //============================================================ 
 function login(id,pw,app_key,cert_path,key_path)
 {
-	console.log("Attempting to login...");
+    console.log("Attempting to login...");
     let login_endpoint = "https://identitysso-cert.betfair.com/api/certlogin";
     
     // Create URL object from the logon endpoint using the URL package
@@ -167,7 +186,7 @@ function login(id,pw,app_key,cert_path,key_path)
     login_options.port = 443;
 
     // Set the application key within the headers according to betfair documentation
-    login_options.headers = {
+    login_options.headers = {        
         'Content-Type': 'application/x-www-form-urlencoded',
         'X-Application': app_key
     };
@@ -177,7 +196,7 @@ function login(id,pw,app_key,cert_path,key_path)
 
     // Create a new https request object.
     let req = https.request(login_options, function(res) {   
-		// Display the https request status code 
+        // Display the https request status code 
         console.log("HTTP status code:", res.statusCode);
             
         // Create string to store the API response data
@@ -202,16 +221,14 @@ function login(id,pw,app_key,cert_path,key_path)
                     if ("SUCCESS" === response.loginStatus)
                     {
                         // Successful logon!!                                    
+                        console.log("Successfully logged in.");
                         // Store the session token. In this script we don't do anything with 
                         // it but in a full application this must be sent with every 
                         // API request we make to identify our session.
                         let sess_id = response.sessionToken;        
-                                            
-                        // That is it! We have successfully logged on
-                        console.log("Successfully logged in.");      
-                        
-                        // Now we have successfully logged in we will try to logout
-                        logout(sess_id);                  
+                                                                     
+                        // Make the listEventTypes request
+                        getEventTypes(sess_id, app_key);                  
                     }
                     else
                     {
@@ -248,3 +265,26 @@ function login(id,pw,app_key,cert_path,key_path)
         console.log('Problem with request: ' + e.message);
     });
 }
+
+
+
+//============================================================ 
+function checkErrors(response) 
+{
+    // check for errors in response body
+    if (response.error != null) 
+    {
+        // If the error object in the response contains only two fields it means that 
+        // there is no detailed message of the exception thrown from API-NG
+        if (Object.keys(response.error).length > 2) 
+        {
+            console.log("Error with request!!");
+            console.log(JSON.stringify(response, null, '\t'));
+            console.log("Exception Details: ");
+            console.log(JSON.stringify(response.error.data.APINGException, null, '\t'));
+        }
+        // Exit program
+        process.exit(1);
+    }
+}
+
