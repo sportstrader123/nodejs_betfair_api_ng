@@ -34,7 +34,6 @@ The code is run from the commandline and requires 5 parameters. These are
 "use strict"
 // Packages required
 var https = require('https');
-var fs = require('fs');
 var url = require('url'); 
 
 run_login();
