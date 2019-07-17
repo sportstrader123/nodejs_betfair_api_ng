@@ -6,7 +6,7 @@
 * Description
 This is a simple node.js script that will login to
 your Betfair account via the Betfair API (via the 
-non-interactive login) and then logout again.
+non-interactive login).
 It will use your login credentials, application key and 
 key and certificate files that you will need to create
 (or already have) in order to do so.
