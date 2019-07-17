@@ -6,7 +6,7 @@
 * Description
 This is a simple node.js script that will login to
 your Betfair account via the Betfair API (via the 
-non-interactive login).
+non-interactive login) and then logout again.
 It will use your login credentials, application key and 
 key and certificate files that you will need to create
 (or already have) in order to do so.
@@ -60,11 +60,99 @@ function run_login()
         print_cli_params();
         process.exit(1);
     }    
-    let id             = cli_params[0];
-    let pw             = cli_params[1];
+    let id          = cli_params[0];
+    let pw          = cli_params[1];
     let app_key     = cli_params[2];
-    let cert_path     = cli_params[3];
-    let key_path     = cli_params[4];
+    let cert_path   = cli_params[3];
+    let key_path    = cli_params[4];
+    
+    login(id,pw,app_key,cert_path,key_path);
+}
+
+//============================================================ 
+function logout(session_id)
+{
+	console.log("Attempting to logout...");
+	let logout_endpoint = 'https://identitysso.betfair.com/api/logout';
+	
+	let logout_options = url.parse(logout_endpoint);
+	
+	logout_options.method = 'POST';
+    logout_options.port = 443;
+    
+    // Need to populate the header with the session token that we obtained at login
+	logout_options.headers = {
+		'Accept': 'application/json',
+		'X-Authentication' : session_id        
+    };
+    
+    logout_options.agent = new https.Agent(logout_options);
+
+    // Create a new https request object.
+    let req = https.request(logout_options, function(res) {    
+		// Display the https request status code
+        console.log("HTTP status code:", res.statusCode);
+            
+        // Create string to store the API response data
+        let responseData = "";
+        res.on('data', function(new_data) {
+            // New data arrived - append to existing string buffer
+            responseData += new_data;
+        });
+        res.on('end', function() {
+            // On end handler. Fires when the response has been fully received
+            try
+            {
+                // Parse the response JSON
+                let response = JSON.parse(responseData);
+                if (200 === res.statusCode)
+                {
+                    // Received HTTP status code 200. 
+                    // The response is a JSON object that contains a status
+                    // code.
+                    if ("SUCCESS" === response.status)
+                    {
+                        // Logged out successfully!!                                                            
+                        console.log("Logout sucessful!");
+                    }
+                    else
+                    {
+                        // Logoout unsuccessful - display status and error 
+                        console.log("Logout attempt failed, response status = " + response.status + ", error = " + response.error);                        
+                    }
+                }
+                else
+                {
+                    // Logout failed. Report the HTTP error status code
+                    console.error("Logout attempt failed! HTTP status code = " + res.statusCode);
+                }
+            }
+            catch (e)
+            {
+                // JSON parser error - report the reason that the JSON was not
+                // correctly parsed.
+                console.error("JSON parse error: " + e.message);
+            }
+        });
+        res.on('error', function(e) {
+            // Error with response - dump to console.
+            console.error(e);
+        });
+    });
+    
+    // Post the request
+    req.end();
+    req.on('error', function(e) {
+        // Error with the request  - dump to console.
+        console.log('Problem with request: ' + e.message);
+    });
+
+}
+
+//============================================================ 
+function login(id,pw,app_key,cert_path,key_path)
+{
+	console.log("Attempting to login...");
     let login_endpoint = "https://identitysso-cert.betfair.com/api/certlogin";
     
     // Create URL object from the logon endpoint using the URL package
@@ -88,8 +176,9 @@ function run_login()
     login_options.agent = new https.Agent(login_options);
 
     // Create a new https request object.
-    let req = https.request(login_options, function(res) {    
-        console.log("statusCode:", res.statusCode);
+    let req = https.request(login_options, function(res) {   
+		// Display the https request status code 
+        console.log("HTTP status code:", res.statusCode);
             
         // Create string to store the API response data
         let responseData = "";
@@ -119,7 +208,10 @@ function run_login()
                         let sess_id = response.sessionToken;        
                                             
                         // That is it! We have successfully logged on
-                        console.log("Successfully logged in.");                        
+                        console.log("Successfully logged in.");      
+                        
+                        // Now we have successfully logged in we will try to logout
+                        logout(sess_id);                  
                     }
                     else
                     {
