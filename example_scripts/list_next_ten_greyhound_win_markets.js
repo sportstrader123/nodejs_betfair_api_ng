@@ -7,9 +7,11 @@
 This is a simple node.js script that will login to
 your Betfair account via the Betfair API (via the 
 non-interactive login). If successful, it will then
-call the listEventTypes API operation and print to the 
-console each listed event type ID, its name and the 
-number of available markets for that event type.
+call the listMarketCatalogue API operation with filters 
+created to request the next 10 British Greyhound WIN 
+markets that start AFTER the time the request is made.
+When the response is received, the start time, name and 
+Betfair ID of each market is printed to the console.
 
 It will use your login credentials, application key and 
 key and certificate files that you will need to create
@@ -76,11 +78,9 @@ function run()
 }
 
 //============================================================ 
-function parseListEventTypesResponse(data) 
+function parseListMarketCatResponse(data) 
 {
-    // Callback for when listEventTypes response is received
-    // We parse the JSON response here.
-
+	// Callback for when listMarketCatalogue response is received
     let response = {};
     try
     {
@@ -93,21 +93,57 @@ function parseListEventTypesResponse(data)
         return;
     }
     checkErrors(response);
-    let eventlist = response.result;
-    // Iterate over the items in the response and display 
-    // the event type ID, name and the number of markets for each
-    // event type
-    for (let event of eventlist)
-    {
-        let evid = event.eventType.id;
-        let evname = event.eventType.name;
-        let mkcount = event.marketCount;
-        console.log("   [" + evid + "]  " + evname + " (" + mkcount + " markets).");
-    }
+	let result = response.result;
+	let market_array_length = result.length;
+	let todays_races = [];
+	let todays_races_with_runners = [];
+	// check for zero length - indicates racing done for the day.
+	for (let i = 0; i < market_array_length; i++) 
+	{
+		let market = {};
+		market.id = result[i].marketId;
+		market.marketName = result[i].event.name + ' ' + result[i].marketName;
+		let starttime = new Date(result[i].marketStartTime);
+		let tm = '';
+		let vhour = starttime.getUTCHours();
+		if (vhour < 10)
+		{
+			tm += ('0' + vhour + ':');
+		}
+		else
+		{
+			tm += (vhour + ':');
+		}
+		let vmin = starttime.getUTCMinutes();
+		if (vmin < 10)
+		{
+			tm += ('0' + vmin);
+		}
+		else
+		{
+			tm += vmin;
+		}
+		
+		market.startTime = tm
+		market.type = result[i].description.marketType;	
+		market.numSelections = result[i].runners.length;			
+		let market_string = (market.startTime + ' - ' + market.marketName + ', ID = ' + market.id);	
+		todays_races.push(market_string);
+		todays_races_with_runners.push(market_string);
+		console.log(market_string);
+		for (let jk = 0; jk < market.numSelections; jk++)
+		{
+			let selection = {};
+			selection.id = result[i].runners[jk].selectionId;
+			selection.runnerName = result[i].runners[jk].runnerName;
+			let runner_string = ("\t" + selection.runnerName + ' = ' + selection.id);
+			todays_races_with_runners.push(runner_string);
+		}			
+	}
 }
 
 //============================================================ 
-function getEventTypes(session_id, app_key) 
+function getNextTenGBDogWinMarkets(session_id, app_key) 
 {
     // Create request options - the session token needs to be set here
     // as well as the application key
@@ -126,12 +162,26 @@ function getEventTypes(session_id, app_key)
         }
     }
     
-    // Have an empty filter for this request.
-    let filter = '{"filter":{}}';
+    // Create the filter to get the markets we want. We ask for first 10 greyhound WIN 
+    // markets that start after the current time now.
+    let json_date_start = new Date().toJSON();
+    
+    // The event type code for Greyhounds is 4339. This can be verified with the use of the 
+    // listEventTypes API operation (see list_event_types.js example script for more details)
+    let filter = '{"filter":{"eventTypeIds": [4339]';
+    // Set the country and market types of interest
+	filter += ',"marketCountries":["GB"],"marketTypeCodes":["WIN"],';
+	// Set filter to give markets that start only after the time NOW
+	filter += ('"marketStartTime":{"from":"'+json_date_start+'"}}');
+	// Specify a maximum of 10 markets to be returned in the response and request that they 
+	// are sorted in start time order
+	filter += ',"sort":"FIRST_TO_START","maxResults":"10"';
+	// Request other details about each market to be returned by teh response
+	filter += ',"marketProjection":["MARKET_DESCRIPTION","RUNNER_DESCRIPTION","MARKET_START_TIME","EVENT","COMPETITION"]}';
 
-    // Create the JSON request - this involves setting the filter and the JSON-RPC interface method
-    // - in this case we are calling the listEventTypes operation.
-    let json_request = '{"jsonrpc":"2.0","method":"SportsAPING/v1.0/listEventTypes", "params": ' + filter + ', "id": 1}';
+    // Create the request JSON now - this involves setting the filter and the JSON-RPC interface method
+    // - in this case we are calling the listMarketCatalogue operation.
+    let json_request = '{"jsonrpc":"2.0","method":"SportsAPING/v1.0/listMarketCatalogue", "params": ' + filter + ', "id": 1}';
     
     // Create a string buffer to store the response we get back
     let response_buffer = '';
@@ -148,7 +198,7 @@ function getEventTypes(session_id, app_key)
             // Event handler for end of data received.
             // When the transmission has ended we call the response
             // parser function
-            parseListEventTypesResponse(response_buffer);
+            parseListMarketCatResponse(response_buffer);
         });
         res.on('close', function(err) {
             // Socket close error handler
@@ -226,8 +276,10 @@ function login(id,pw,app_key,cert_path,key_path)
                         // API request we make to identify our session.
                         let sess_id = response.sessionToken;        
                                                                      
-                        // Make the listEventTypes request
-                        getEventTypes(sess_id, app_key);                  
+                        // Make the listMarketCatalogue request now.
+                        // This will ask for the next 10 GB greyhound
+                        // win markets.
+                        getNextTenGBDogWinMarkets(sess_id, app_key);                  
                     }
                     else
                     {
@@ -286,4 +338,13 @@ function checkErrors(response)
         process.exit(1);
     }
 }
+
+
+
+
+
+
+
+
+
 
