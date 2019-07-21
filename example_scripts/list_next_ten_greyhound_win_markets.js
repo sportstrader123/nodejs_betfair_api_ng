@@ -11,7 +11,9 @@ call the listMarketCatalogue API operation with filters
 created to request the next 10 British Greyhound WIN 
 markets that start AFTER the time the request is made.
 When the response is received, the start time, name and 
-Betfair ID of each market is printed to the console.
+Betfair ID of each market is printed to the console. 
+Under each market the name and Betfair ID of each runner
+is printed.
 
 It will use your login credentials, application key and 
 key and certificate files that you will need to create
@@ -95,8 +97,7 @@ function parseListMarketCatResponse(data)
     checkErrors(response);
 	let result = response.result;
 	let market_array_length = result.length;
-	let todays_races = [];
-	let todays_races_with_runners = [];
+	
 	// check for zero length - indicates racing done for the day.
 	for (let i = 0; i < market_array_length; i++) 
 	{
@@ -128,16 +129,15 @@ function parseListMarketCatResponse(data)
 		market.type = result[i].description.marketType;	
 		market.numSelections = result[i].runners.length;			
 		let market_string = (market.startTime + ' - ' + market.marketName + ', ID = ' + market.id);	
-		todays_races.push(market_string);
-		todays_races_with_runners.push(market_string);
+				
 		console.log(market_string);
 		for (let jk = 0; jk < market.numSelections; jk++)
 		{
 			let selection = {};
 			selection.id = result[i].runners[jk].selectionId;
 			selection.runnerName = result[i].runners[jk].runnerName;
-			let runner_string = ("\t" + selection.runnerName + ' = ' + selection.id);
-			todays_races_with_runners.push(runner_string);
+			let runner_string = ("\t" + selection.runnerName + ' = ' + selection.id);		
+			console.log(runner_string);
 		}			
 	}
 }
