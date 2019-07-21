@@ -4,18 +4,16 @@
  * DECIDING IF YOU WISH TO MAKE USE OF THIS CODE
 
 * Description
-This is a simple node.js script that will login to
-your Betfair account via the Betfair API (via the 
-non-interactive login). If successful, it will then
-call the listMarketCatalogue API operation with filters 
-created to request the next 10 British Greyhound WIN 
-markets that start AFTER the time the request is made.
-When the response is received, the start time, name and 
-Betfair ID of each market is printed to the console. 
-Under each market the name and Betfair ID of each runner
-is printed.
+This is a simple node.js script that provides an example 
+of how to list markets specific to a competition type.
+The program will login to your Betfair account via the API 
+and then call the listMarketCatalogue API operation with filters 
+created to request todays match odds and correct score markets for 
+US Major League Football competition (ID = 141). For each market
+the start time, marked ID, market name and market type will be
+printed to console.
 
-It will use your login credentials, application key and 
+The program will use your login credentials, application key and 
 key and certificate files that you will need to create
 (or already have) in order to do so.
 Full details of the non-interactive logon process can
@@ -39,12 +37,13 @@ The code is run from the commandline and requires 5 parameters. These are
 * then PLEASE DO NOT RUN THE SCRIPT!
 */ 
 
-
 "use strict"
 
 var https = require('https');
 var url = require('url'); 
 var fs = require('fs');
+
+const comp_id = 141; // US Major league football
 
 run();
 
@@ -97,53 +96,23 @@ function parseListMarketCatResponse(data)
     checkErrors(response);
 	let result = response.result;
 	let market_array_length = result.length;
-	
-	// check for zero length - indicates racing done for the day.
+	console.log("Response contains " + market_array_length + " markets:");
 	for (let i = 0; i < market_array_length; i++) 
 	{
 		let market = {};
 		market.id = result[i].marketId;
-		market.marketName = result[i].event.name + ' ' + result[i].marketName;
-		let starttime = new Date(result[i].marketStartTime);
-		let tm = '';
-		let vhour = starttime.getUTCHours();
-		if (vhour < 10)
-		{
-			tm += ('0' + vhour + ':');
-		}
-		else
-		{
-			tm += (vhour + ':');
-		}
-		let vmin = starttime.getUTCMinutes();
-		if (vmin < 10)
-		{
-			tm += ('0' + vmin);
-		}
-		else
-		{
-			tm += vmin;
-		}
+		market.marketName = result[i].event.name + ' - ' + result[i].marketName;
 		
-		market.startTime = tm
+		let starttime = new Date(result[i].marketStartTime);
 		market.type = result[i].description.marketType;	
 		market.numSelections = result[i].runners.length;			
-		let market_string = (market.startTime + ' - ' + market.marketName + ', ID = ' + market.id);	
-				
+		let market_string = (starttime.toTimeString() + " : " + market.id + " (" + market.marketName + ") : [" + market.type + "]");	
 		console.log(market_string);
-		for (let jk = 0; jk < market.numSelections; jk++)
-		{
-			let selection = {};
-			selection.id = result[i].runners[jk].selectionId;
-			selection.runnerName = result[i].runners[jk].runnerName;
-			let runner_string = ("\t" + selection.runnerName + ' = ' + selection.id);		
-			console.log(runner_string);
-		}			
 	}
 }
 
 //============================================================ 
-function getNextTenGBDogWinMarkets(session_id, app_key) 
+function getTodaysMarketsByCompetitionID(session_id, app_key) 
 {
     // Create request options - the session token needs to be set here
     // as well as the application key
@@ -162,21 +131,33 @@ function getNextTenGBDogWinMarkets(session_id, app_key)
         }
     }
     
-    // Create the filter to get the markets we want. We ask for first 10 greyhound WIN 
-    // markets that start after the current time now.
-    let json_date_start = new Date().toJSON();
+    // Create the filter to get the markets we want.
     
-    // The event type code for Greyhounds is 4339. This can be verified with the use of the 
-    // listEventTypes API operation (see list_event_types.js example script for more details)
-    let filter = '{"filter":{"eventTypeIds": [4339]';
-    // Set the country and market types of interest
-	filter += ',"marketCountries":["GB"],"marketTypeCodes":["WIN"],';
-	// Set filter to give markets that start only after the time NOW
-	filter += ('"marketStartTime":{"from":"'+json_date_start+'"}}');
-	// Specify a maximum of 10 markets to be returned in the response and request that they 
+    // We don't need to specify country codes OR event type IDs here because we are looking for
+    // markets associated with a specific competition ID
+    let filter = '{"filter":{"competitionIds":["' + comp_id + '"]';
+    
+    // market types of interest - MATCH_ODDS and CORRECT_SCORE
+	filter += ',"marketTypeCodes":["MATCH_ODDS","CORRECT_SCORE"],';
+	
+	// Set filter to give markets that have start times today - this requires Date objects
+	// and some manipulation
+	let date = new Date();
+	date.setUTCHours(23);
+	date.setUTCMinutes(59);
+	date.setUTCSeconds(59);
+    let end_date = date.toJSON();
+	date.setUTCHours(0);
+	date.setUTCMinutes(0);
+	date.setUTCSeconds(0);    
+    let start_date = date.toJSON();
+	filter += ('"marketStartTime":{"from":"'+ start_date + '","to":"' + end_date + '"}}');
+	
+	// Specify a maximum of 100 markets to be returned in the response and request that they 
 	// are sorted in start time order
-	filter += ',"sort":"FIRST_TO_START","maxResults":"10"';
-	// Request other details about each market to be returned by teh response
+	filter += ',"sort":"FIRST_TO_START","maxResults":"100"';
+	
+	// Request other details about each market to be returned by the response
 	filter += ',"marketProjection":["MARKET_DESCRIPTION","RUNNER_DESCRIPTION","MARKET_START_TIME","EVENT","COMPETITION"]}';
 
     // Create the request JSON now - this involves setting the filter and the JSON-RPC interface method
@@ -276,10 +257,8 @@ function login(id,pw,app_key,cert_path,key_path)
                         // API request we make to identify our session.
                         let sess_id = response.sessionToken;        
                                                                      
-                        // Make the listMarketCatalogue request now.
-                        // This will ask for the next 10 GB greyhound
-                        // win markets.
-                        getNextTenGBDogWinMarkets(sess_id, app_key);                  
+                        // Make the listMarketCatalogue request now.                        
+                        getTodaysMarketsByCompetitionID(sess_id, app_key);                  
                     }
                     else
                     {
@@ -335,16 +314,8 @@ function checkErrors(response)
             console.log(JSON.stringify(response.error.data.APINGException, null, '\t'));
         }
         // Exit program
+        console.log("Error with request! Error code: " + response.error.code + ", Message:" + response.error.message);
         process.exit(1);
     }
 }
-
-
-
-
-
-
-
-
-
 
