@@ -25,6 +25,27 @@ var https = require('https');
 
 module.exports = {
 	
+	validateAPIResponse: function(response) {
+		// If there was an error, we should get a betfair APINGException returned
+		let success = true;
+		if (response.error != null) 
+		{
+			success = true;
+			// if error in response contains only two fields it means that there is no 
+			// detailed message of exception thrown from API-NG
+			//console.error("Error with request!!");
+			//console.error(JSON.stringify(response, null, "\t"));
+			console.log("Error with request!!");
+			console.log("Error code: " + response.error.code);
+			console.log("Message: " + response.error.message);
+			if (Object.keys(response.error).length > 2) 
+			{
+				console.error("Exception Details: ");
+				console.error(JSON.stringify(response.error.data.APINGException, null, "\t"));
+			}
+		}
+		return success;
+	},
 	login : function(login_params,callback) {
 		
 		// Create an object to store parameters that will be passed 
