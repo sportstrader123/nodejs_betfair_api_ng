@@ -142,4 +142,56 @@ module.exports = {
 			callback(callback_params);    
 		});
 	},
+	
+	listMarketCatalogue : function(params,callback) {
+		// Input parameter params should contain two objects:
+		// 1. https_options to create the https request with (contains app_key and session_id)
+		// 2. market_filter (contains the market filter to apply to the request)
+		
+		let response_params = {};
+		response_params.error = true;
+		response_params.error_message = 'ERROR';
+		response_params.data = '';
+		response_params.https_options = params.https_options;
+		
+		let json_request = '{"jsonrpc":"2.0","method":"SportsAPING/v1.0/listMarketCatalogue", "params": ' + params.market_filter + ', "id": 1}';
+		
+		// Create a string buffer to store the response we get back
+		let response_buffer = '';
+		
+		// Create the HTTPS request now
+		let req = https.request(params.https_options,function (res) {
+			res.setEncoding('utf-8');
+			res.on('data', function (chunk) {
+				// Event handler for arrival of new data
+				// Append the new data to the buffer
+				response_buffer += chunk;
+			});
+			res.on('end', function() {
+				// Event handler for end of data received.
+				// When the transmission has ended we call the response
+				// parser function
+				response_params.data = response_buffer;
+				response_params.error = false;
+				response_params.error_message = "OK";
+				callback(response_params);				
+			});
+			res.on('close', function(err) {
+				// Socket close error handler				
+				response_params.error_message = 'ERROR SOCKET CONNECTION CLOSED!';
+				response_params.data = '';
+				callback(response_params);
+			});    
+		});
+			
+		// Send Json request object
+		req.write(json_request, 'utf-8');
+		req.end();
+		req.on('error', function(e) {
+			// error handler for request			
+			response_params.error_message = 'REQUEST ERROR: ' + e.message;
+			response_params.data = '';
+			callback(response_params);
+		}); 		
+	}
 }
