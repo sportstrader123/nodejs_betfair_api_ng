@@ -55,11 +55,11 @@ function run_login()
         process.exit(1);
     }
     let login_params = {};    
-    login_params.id        	= cli_params[0];
-    login_params.pw        	= cli_params[1];
-    login_params.app_key   	= cli_params[2];
-    login_params.certfile 	= cli_params[3];
-    login_params.keyfile  	= cli_params[4];
+    login_params.id           = cli_params[0];
+    login_params.pw           = cli_params[1];
+    login_params.app_key      = cli_params[2];
+    login_params.certfile     = cli_params[3];
+    login_params.keyfile      = cli_params[4];
     
     bfapi.login(login_params,login_callback);
 }
@@ -67,12 +67,12 @@ function run_login()
 //============================================================ 
 function login_callback(params)
 {
-	if (params.error === false)
-	{
-		console.log("Login successful!");
-	}
-	else
-	{		
-		console.log(params.error_message);
-	}
+    if (params.error === false)
+    {
+        console.log("Login successful!");
+    }
+    else
+    {        
+        console.log(params.error_message);
+    }
 }
