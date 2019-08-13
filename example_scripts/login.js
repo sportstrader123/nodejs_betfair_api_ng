@@ -7,12 +7,8 @@
 This is a simple node.js script that will login to
 your Betfair account via the Betfair API (via the 
 non-interactive login).
-It will use your login credentials, application key and 
-key and certificate files that you will need to create
-(or already have) in order to do so.
-Full details of the non-interactive logon process can
-be found here
-https://docs.developer.betfair.com/pages/viewpage.action?pageId=3834909
+This is very similar to the login.js but aims to show the use of 
+callback functions and modules.
 
 The code is run from the commandline and requires 5 parameters. These are
 1. Betfair account username
@@ -33,9 +29,7 @@ The code is run from the commandline and requires 5 parameters. These are
 
 "use strict"
 // Packages required
-var https = require('https');
-var url = require('url'); 
-var fs = require('fs');
+var bfapi = require("../betfair_api/betfairapi.js");
 
 run_login();
 
@@ -59,101 +53,26 @@ function run_login()
         console.log("Error - insufficient arguments supplied. Required arguments are:");
         print_cli_params();
         process.exit(1);
-    }    
-    let id        = cli_params[0];
-    let pw        = cli_params[1];
-    let app_key   = cli_params[2];
-    let cert_path = cli_params[3];
-    let key_path  = cli_params[4];
+    }
+    let login_params = {};    
+    login_params.id        	= cli_params[0];
+    login_params.pw        	= cli_params[1];
+    login_params.app_key   	= cli_params[2];
+    login_params.certfile 	= cli_params[3];
+    login_params.keyfile  	= cli_params[4];
     
-    let login_endpoint = "https://identitysso-cert.betfair.com/api/certlogin";
-    
-    // Create URL object from the logon endpoint using the URL package
-    // See this link:  https://nodejs.org/api/url.html#url_url 
-    // for more details.
-    let login_options = url.parse(login_endpoint);
+    bfapi.login(login_params,login_callback);
+}
 
-    // We login with a HTTP POST request.
-    // Set the header and options - including application key and the 
-    // key file and cert file
-    login_options.method = 'POST';
-    login_options.port = 443;
-
-    // Set the application key within the headers according to betfair documentation
-    login_options.headers = {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'X-Application': app_key
-    };
-    login_options.key = fs.readFileSync(key_path);
-    login_options.cert = fs.readFileSync(cert_path);
-    login_options.agent = new https.Agent(login_options);
-
-    // Create a new https request object.
-    let req = https.request(login_options, function(res) {    
-        console.log("statusCode:", res.statusCode);
-            
-        // Create string to store the API response data
-        let responseData = "";
-        res.on('data', function(new_data) {
-            // New data arrived - append to existing string buffer
-            responseData += new_data;
-        });
-        res.on('end', function() {
-            // On end handler. Fires when the response has been fully received
-            try
-            {
-                // Parse the response JSON
-                let response = JSON.parse(responseData);
-                if (200 === res.statusCode)
-                {
-                    // Received HTTP status code 200. 
-                    // The response is a JSON object that contains a status
-                    // code. If login was successful, it also includes a session token.                    
-                    // See Betfair documentation on the non-interactive login for more
-                    // details
-                    if ("SUCCESS" === response.loginStatus)
-                    {
-                        // Successful logon!!                                    
-                        // Store the session token. In this script we don't do anything with 
-                        // it but in a full application this must be sent with every 
-                        // API request we make to identify our session.
-                        let sess_id = response.sessionToken;        
-                                            
-                        // That is it! We have successfully logged on
-                        console.log("Successfully logged in.");                        
-                    }
-                    else
-                    {
-                        // Logon unsuccessful - API indicates a logon error - display it
-                        console.log("Login attempt failed. API loginStatus " + response.loginStatus);
-                    }
-                }
-                else
-                {
-                    // Login failed. Report the HTTP error status code
-                    console.error("Login failed! HTTP status code = " + res.statusCode);
-                }
-            }
-            catch (e)
-            {
-                // JSON parser error - report the reason that the JSON was not
-                // correctly parsed.
-                console.error("JSON parse error: " + e.message);
-            }
-        });
-        res.on('error', function(e) {
-            // Error with response - dump to console.
-            console.error(e);
-        });
-    });
-
-    // Create string that forms our request payload - this contains our login credentials
-    let data = 'username=' + id + '&password=' + pw;
-
-    // Post the request
-    req.end(data);
-    req.on('error', function(e) {
-        // Error with the request  - dump to console.
-        console.log('Problem with request: ' + e.message);
-    });
+//============================================================ 
+function login_callback(params)
+{
+	if (params.error === false)
+	{
+		console.log("Login successful!");
+	}
+	else
+	{		
+		console.log(params.error_message);
+	}
 }
