@@ -43,7 +43,6 @@ The code is run from the commandline and requires 5 parameters. These are
 
 var bfapi = require("../betfair_api/betfairapi.js");
 var market_filters = require("../betfair_api/market_filters.js");
-var https = require('https');
 
 run();
 
@@ -95,11 +94,11 @@ function loginCallback(login_response_params)
         // markets that start after the current time now.
             
         let event_types = [4339];                // Greyhound event type only
-        let countries = ["GB"];                    // GB markets ONLY
-        let market_types = ["WIN"];                // WIN markets only
+        let countries = ["GB"];                  // GB markets ONLY
+        let market_types = ["WIN"];              // WIN markets only
         let start_time = new Date().toJSON();    // start time is NOW
-        let end_time = '';                         // no end time just market count limit
-        const max_num_markets = 10;                // maximum of 10 markets 
+        let end_time = '';                       // no end time just market count limit
+        const max_num_markets = 10;              // maximum of 10 markets 
         const filter = market_filters.createMarketFilter(event_types,
                                                          countries,
                                                          market_types,

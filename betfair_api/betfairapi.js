@@ -26,7 +26,7 @@ var https = require('https');
 module.exports = {
     
     validateAPIResponse: function(response) {
-		// Input parameter:
+        // Input parameter:
         // 1. response - an object that is the return value of JSON.parse() 
         //    called on an API response buffer
         // Return value: boolean flag indicating if there are errors with the response
@@ -50,8 +50,8 @@ module.exports = {
         return success;
     },
     login : function(login_params,callback) {
-		// Input parameters: 
-		// 1. login_params - must contain the following data:
+        // Input parameters: 
+        // 1. login_params - must contain the following data:
         //    a. login_params.keyfile - string containing full path to key file
         //    b. login_params.certfile - string containing full path to cert file
         //    c. login_params.app_key - string storing the application key
