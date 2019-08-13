@@ -69,11 +69,11 @@ function run()
         process.exit(1);
     }
     let login_params = {};    
-    login_params.id        	= cli_params[0];
-    login_params.pw        	= cli_params[1];
-    login_params.app_key   	= cli_params[2];
-    login_params.certfile 	= cli_params[3];
-    login_params.keyfile  	= cli_params[4];
+    login_params.id            = cli_params[0];
+    login_params.pw            = cli_params[1];
+    login_params.app_key       = cli_params[2];
+    login_params.certfile     = cli_params[3];
+    login_params.keyfile      = cli_params[4];
     
     bfapi.login(login_params,loginCallback);
 }
@@ -81,125 +81,120 @@ function run()
 //============================================================ 
 function loginCallback(login_response_params)
 {
-	// Login callback - will be called when bfapi.login receives a response
-	// from the API or encounters an error
-	if (login_response_params.error === false)
-	{
-		console.log("Login successful!");
-		
-		let https_options = {
-			hostname: 'api.betfair.com',
-			port: 443,
-			path: '/exchange/betting/json-rpc/v1',
-			agent: new https.Agent(),
-			method: 'POST',
-			headers: {            
-				'Accept': 'application/json',
-				'Content-type' : 'application/json',
-				'X-Authentication' : login_response_params.session_id,
-				'Connection':'Keep-Alive',
-				'X-Application' : login_response_params.app_key,
-			}
-		}
-		// Create a market filters now to get the next 10 
-		// UK greyhound race WIN markets
+    // Login callback - will be called when bfapi.login receives a response
+    // from the API or encounters an error
+    if (login_response_params.error === false)
+    {
+        console.log("Login successful!");
+        
+
+        // Create a market filters now to get the next 10 
+        // UK greyhound race WIN markets
   
-		// Create the filter to get the markets we want. We ask for first 10 greyhound WIN 
-		// markets that start after the current time now.
-		    
-		let event_types = [4339];				// Greyhound event type only
-		let countries = ["GB"];					// GB markets ONLY
-		let market_types = ["WIN"];				// WIN markets only
-		let start_time = new Date().toJSON();	// start time is NOW
-		let end_time = ''; 						// no end time just market count limit
-		const max_num_markets = 10;				// maximum of 10 markets 
-		const filter = market_filters.createListMarketCatFilter(event_types,
-																countries,
-																market_types,
-																start_time,
-																end_time,
-																max_num_markets);								
-		let list_mkt_cat_params = {};
-		list_mkt_cat_params.https_options = https_options;
-		list_mkt_cat_params.market_filter = filter;
-		bfapi.listMarketCatalogue(list_mkt_cat_params,parseListMarketCatResponse);
-	}
-	else
-	{
-		console.log(login_response_params.error_message);
-	}																													
+        // Create the filter to get the markets we want. We ask for first 10 greyhound WIN 
+        // markets that start after the current time now.
+            
+        let event_types = [4339];                // Greyhound event type only
+        let countries = ["GB"];                    // GB markets ONLY
+        let market_types = ["WIN"];                // WIN markets only
+        let start_time = new Date().toJSON();    // start time is NOW
+        let end_time = '';                         // no end time just market count limit
+        const max_num_markets = 10;                // maximum of 10 markets 
+        const filter = market_filters.createMarketFilter(event_types,
+                                                         countries,
+                                                         market_types,
+                                                         start_time,
+                                                         end_time,
+                                                         max_num_markets);                                
+
+        bfapi.listMarketCatalogue(login_response_params.session_id,
+								  login_response_params.app_key,
+								  filter,
+								  parseListMarketCatResponse);
+    }
+    else
+    {
+        console.log(login_response_params.error_message);
+    }                                                                                                                    
 }
 
 //============================================================ 
 function parseListMarketCatResponse(response_params) 
 {
-	if (response_params.error === false)
-	{
-		// Callback for when listMarketCatalogue response is received
-		let response = {};
-		try
-		{
-			response = JSON.parse(response_params.data);
-		}
-		catch (ex)
-		{
-			console.error("Error parsing JSON response packet: " + ex.message);
-			console.error("Offending packet content: " + data);
-			return;
-		}
-		if (bfapi.validateAPIResponse(response))
-		{
-			let result = response.result;
-			let market_array_length = result.length;
-			
-			// check for zero length - indicates racing done for the day.
-			for (let i = 0; i < market_array_length; i++) 
-			{
-				let market = {};
-				market.id = result[i].marketId;
-				market.marketName = result[i].event.name + ' ' + result[i].marketName;
-				let starttime = new Date(result[i].marketStartTime);
-				let tm = '';
-				let vhour = starttime.getUTCHours();
-				if (vhour < 10)
-				{
-					tm += ('0' + vhour + ':');
-				}
-				else
-				{
-					tm += (vhour + ':');
-				}
-				let vmin = starttime.getUTCMinutes();
-				if (vmin < 10)
-				{
-					tm += ('0' + vmin);
-				}
-				else
-				{
-					tm += vmin;
-				}
-				
-				market.startTime = tm
-				market.type = result[i].description.marketType;	
-				market.numSelections = result[i].runners.length;			
-				let market_string = (market.startTime + ' - ' + market.marketName + ', ID = ' + market.id);	
-						
-				console.log(market_string);
-				for (let jk = 0; jk < market.numSelections; jk++)
-				{
-					let selection = {};
-					selection.id = result[i].runners[jk].selectionId;
-					selection.runnerName = result[i].runners[jk].runnerName;
-					let runner_string = ("\t" + selection.runnerName + ' = ' + selection.id);		
-					console.log(runner_string);
-				}			
-			}
-		}
-	}
-	else
-	{
-		console.log(response_params.error_message);
-	}
+	// Callback for when listMarketCatalogue response is received
+	// Input parameter response_params contains the following data:
+	//    1. response_params.error - a boolean error flag
+	//    2. response_params.error_message - string containing error details or "OK" when no error
+	//    3. response_params.data - string containing the JSON response
+	//    4. response_params.session_id - string storing session token value
+	//    5. response_params.app_key - string storing application key
+    if (response_params.error === false)
+    {
+        
+        let response = {};
+        try
+        {
+            response = JSON.parse(response_params.data);
+        }
+        catch (ex)
+        {
+            console.error("Error parsing JSON response packet: " + ex.message);
+            console.error("Offending packet content: " + data);
+            return;
+        }
+        if (bfapi.validateAPIResponse(response))
+        {
+            let result = response.result;
+            let market_array_length = result.length;
+            
+            // check for zero length - indicates racing done for the day.
+            for (let i = 0; i < market_array_length; i++) 
+            {
+                let market = {};
+                market.id = result[i].marketId;
+                market.marketName = result[i].event.name + ' ' + result[i].marketName;
+                let starttime = new Date(result[i].marketStartTime);
+                let tm = '';
+                let vhour = starttime.getUTCHours();
+                if (vhour < 10)
+                {
+                    tm += ('0' + vhour + ':');
+                }
+                else
+                {
+                    tm += (vhour + ':');
+                }
+                let vmin = starttime.getUTCMinutes();
+                if (vmin < 10)
+                {
+                    tm += ('0' + vmin);
+                }
+                else
+                {
+                    tm += vmin;
+                }
+                
+                market.startTime = tm
+                market.type = result[i].description.marketType;    
+                market.numSelections = result[i].runners.length;            
+                let market_string = (market.startTime + ' - ' + market.marketName + ', ID = ' + market.id);    
+                        
+                console.log(market_string);
+                for (let jk = 0; jk < market.numSelections; jk++)
+                {
+                    let selection = {};
+                    selection.id = result[i].runners[jk].selectionId;
+                    selection.runnerName = result[i].runners[jk].runnerName;
+                    let runner_string = ("\t" + selection.runnerName + ' = ' + selection.id);        
+                    console.log(runner_string);
+                }            
+            }
+        }
+    }
+    else
+    {
+        console.log(response_params.error_message);
+    }
 }
 
 
