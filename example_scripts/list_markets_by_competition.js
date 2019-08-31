@@ -111,8 +111,7 @@ function loginCallback(login_response_params)
                                                                   start_date,
                                                                   end_date,
                                                                   max_num_markets);                                
-        console.log(filter);
-
+   
         bfapi.listMarketCatalogue(login_response_params.session_id,
                                   login_response_params.app_key,
                                   filter,
