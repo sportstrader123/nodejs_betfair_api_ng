@@ -244,5 +244,80 @@ module.exports = {
             response_params.data = '';
             callback(response_params);
         });         
+    },
+    
+    listMarketBook : function(session_id,app_key,market_filter,callback) {
+        // Input parameter params:
+        // 1. Valid sesssion token
+        // 2. Valid application key
+        // 3. Filter for the listMarketBook API operation.
+        // 4. Callback function that accepts object that must contain the following objects:
+        //    a. error - a boolean error flag
+        //    b. error_message - string containing error details or "OK" when no error
+        //    c. data - string containing the JSON response
+        //    d. session_id - string duplicated from the input session token value
+        //    e. app_key - string duplicated from the input application key
+        
+        let https_options = {
+            hostname: 'api.betfair.com',
+            port: 443,
+            path: '/exchange/betting/json-rpc/v1',
+            agent: new https.Agent(),
+            method: 'POST',
+            headers: {            
+                'Accept': 'application/json',
+                'Content-type' : 'application/json',
+                'X-Authentication' : session_id,
+                'Connection':'Keep-Alive',
+                'X-Application' : app_key,
+            }
+        }
+        
+        let response_params = {};
+        response_params.error = true;
+        response_params.error_message = 'ERROR';
+        response_params.data = '';
+        response_params.session_id = session_id;
+        response_params.app_key = app_key;        
+        
+        let json_request = '{"jsonrpc":"2.0","method":"SportsAPING/v1.0/listMarketBook", "params": ' + market_filter + ', "id": 1}';
+        
+        // Create a string buffer to store the response we get back
+        let response_buffer = '';
+        
+        // Create the HTTPS request now
+        let req = https.request(https_options,function (res) {
+            res.setEncoding('utf-8');
+            res.on('data', function (chunk) {
+                // Event handler for arrival of new data
+                // Append the new data to the buffer
+                response_buffer += chunk;
+            });
+            res.on('end', function() {
+                // Event handler for end of data received.
+                // When the transmission has ended we call the response
+                // parser function
+                response_params.data = response_buffer;
+                response_params.error = false;
+                response_params.error_message = "OK";
+                callback(response_params);                
+            });
+            res.on('close', function(err) {
+                // Socket close error handler                
+                response_params.error_message = 'ERROR SOCKET CONNECTION CLOSED!';
+                response_params.data = '';
+                callback(response_params);
+            });    
+        });
+            
+        // Send Json request object
+        req.write(json_request, 'utf-8');
+        req.end();
+        req.on('error', function(e) {
+            // error handler for request            
+            response_params.error_message = 'REQUEST ERROR: ' + e.message;
+            response_params.data = '';
+            callback(response_params);
+        });         
     }
 }
