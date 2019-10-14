@@ -65,6 +65,9 @@ module.exports = {
         //    d. error - boolean flag indicating presence of error in response (or request)
         //    e. error_message - string containing error details (or "OK" if no error)
         //    f. app_key - string containing the input argument application key (login_params.app_key)
+        //    g. input_params - an object that is a DUPLICATE of the input parameter object. This is needed
+        //       to allow the callback to process original input arguments without using messy constructs like
+        //       globals
        
         // Create the callback function parameter object that will be passed to callback 
         // when we invoke it. This occurs on receipt of API login response, or an error.
@@ -75,6 +78,7 @@ module.exports = {
         callback_params.error = true;
         callback_params.error_message = '';
         callback_params.app_key = login_params.app_key;
+        callback_params.input_params = login_params;
         
         // Create URL object from the logon endpoint using the URL package
         // See this link:  https://nodejs.org/api/url.html#url_url 
